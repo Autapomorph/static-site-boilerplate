@@ -1,12 +1,17 @@
-const webpack = require('webpack');
 const cssnano = require('cssnano');
 const glob = require('glob');
 const path = require('path');
 const fs = require('fs');
 
+// webpack plugins
 const WebpackBar = require('webpackbar');
+const FriendlyErrorsWebpackPlugin = require('friendly-errors-webpack-plugin');
+const DotenvWebpackPlugin = require('dotenv-webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const HTMLWebpackPlugin = require('html-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
+const ImageminPlugin = require('imagemin-webpack-plugin').default;
+const imageminMozjpeg = require('imagemin-mozjpeg');
 const StyleLintPlugin = require('stylelint-webpack-plugin');
 const WebappWebpackPlugin = require('webapp-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
@@ -14,10 +19,13 @@ const OptimizeCssAssetsPlugin = require('optimize-css-assets-webpack-plugin');
 const RobotstxtPlugin = require('robotstxt-webpack-plugin');
 const SitemapPlugin = require('sitemap-webpack-plugin').default;
 
-const config = require('./site.config');
+const config = require('./config');
 
-// Hot module replacement
-const hmr = new webpack.HotModuleReplacementPlugin();
+// Define common constants
+const isProd = config.env === 'production';
+
+// Environment variables
+const env = new DotenvWebpackPlugin();
 
 // Optimize CSS assets
 const optimizeCss = new OptimizeCssAssetsPlugin({
@@ -38,8 +46,8 @@ const optimizeCss = new OptimizeCssAssetsPlugin({
 
 // Generate robots.txt
 const robots = new RobotstxtPlugin({
-  sitemap: `${config.site_url}/sitemap.xml`,
-  host: config.site_url,
+  sitemap: `${config.siteUrl}/sitemap.xml`,
+  host: config.siteUrl,
 });
 
 // Clean webpack
@@ -55,24 +63,26 @@ const cssExtract = new MiniCssExtractPlugin({
 
 // HTML generation
 const paths = [];
-const generateHTMLPlugins = () => glob.sync('./src/**/*.html').map((dir) => {
-  const filename = path.basename(dir);
+const generateHTMLPlugins = () =>
+  glob.sync('./src/**/*.html').map(dir => {
+    const filepath = path.resolve(dir);
+    const filename = path.basename(dir);
 
-  if (filename !== '404.html') {
-    paths.push(filename);
-  }
+    if (filename !== '404.html') {
+      paths.push(filename);
+    }
 
-  return new HTMLWebpackPlugin({
-    filename,
-    template: path.join(config.root, config.paths.src, filename),
-    meta: {
-      viewport: config.viewport,
-    },
+    return new HTMLWebpackPlugin({
+      filename,
+      template: filepath,
+      meta: {
+        viewport: config.viewport,
+      },
+    });
   });
-});
 
 // Sitemap
-const sitemap = new SitemapPlugin(config.site_url, paths, {
+const sitemap = new SitemapPlugin(config.siteUrl, paths, {
   priority: 1.0,
   lastmodrealtime: true,
 });
@@ -82,8 +92,8 @@ const favicons = new WebappWebpackPlugin({
   logo: config.favicon,
   prefix: 'images/favicons/',
   favicons: {
-    appName: config.site_name,
-    appDescription: config.site_description,
+    appName: config.siteName,
+    appDescription: config.siteDescription,
     developerName: null,
     developerURL: null,
     icons: {
@@ -99,46 +109,53 @@ const favicons = new WebappWebpackPlugin({
   },
 });
 
+// Images
+const imagesCopy = new CopyPlugin([
+  {
+    from: path.join(config.root, config.paths.src, 'images'),
+    to: 'images',
+  },
+]);
+
+const imagesMin = new ImageminPlugin({
+  test: /\.(jpe?g|png|gif|svg)$/i,
+  gifsicle: {
+    interlaced: false,
+  },
+  optipng: {
+    optimizationLevel: 7,
+  },
+  pngquant: {
+    quality: '65-90',
+    speed: 4,
+  },
+  plugins: [
+    imageminMozjpeg({
+      progressive: true,
+    }),
+  ],
+});
+
 // Webpack bar
 const webpackBar = new WebpackBar({
   color: '#ff6469',
 });
 
-// Google analytics
-const CODE = `<script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)})(window,document,'script','//www.google-analytics.com/analytics.js','ga');ga('create','{{ID}}','auto');ga('send','pageview');</script>`;
-
-class GoogleAnalyticsPlugin {
-  constructor({ id }) {
-    this.id = id;
-  }
-
-  apply(compiler) {
-    compiler.hooks.compilation.tap('GoogleAnalyticsPlugin', (compilation) => {
-      HTMLWebpackPlugin.getHooks(compilation).beforeEmit.tapAsync(
-        'GoogleAnalyticsPlugin',
-        (data, cb) => {
-          data.html = data.html.replace('</head>', `${CODE.replace('{{ID}}', this.id) }</head>`);
-          cb(null, data);
-        },
-      );
-    });
-  }
-}
-
-const google = new GoogleAnalyticsPlugin({
-  id: config.googleAnalyticsUA,
-});
+// Friendly Errors
+const friendlyErrors = new FriendlyErrorsWebpackPlugin();
 
 module.exports = [
-  clean,
+  isProd && clean,
+  env,
   stylelint,
   cssExtract,
   ...generateHTMLPlugins(),
   fs.existsSync(config.favicon) && favicons,
-  config.env === 'production' && optimizeCss,
-  config.env === 'production' && robots,
-  config.env === 'production' && sitemap,
-  config.googleAnalyticsUA && google,
+  isProd && imagesCopy,
+  isProd && imagesMin,
+  isProd && optimizeCss,
+  isProd && robots,
+  isProd && sitemap,
   webpackBar,
-  config.env === 'development' && hmr,
+  friendlyErrors,
 ].filter(Boolean);

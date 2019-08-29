@@ -1,5 +1,6 @@
-## Project
-dist/*
+# Project
+/dist
+/build
 
 ## Node.js
 lib-cov
@@ -13,13 +14,17 @@ lib-cov
 pids
 logs
 results
-npm-debug.log
-node_modules
+/.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/node_modules
 
-## Sass
+# Sass
 .sass-cache
 
-## OS X
+# OS X
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -28,8 +33,18 @@ Icon
 .Spotlight-V100
 .Trashes
 
-## Windows
+# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+## env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# testing
+/coverage

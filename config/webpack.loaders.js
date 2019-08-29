@@ -1,8 +1,10 @@
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const config = require('./site.config');
+
+const config = require('./config');
 
 // Define common loader constants
-const sourceMap = config.env !== 'production';
+const isProd = config.env === 'production';
+const sourceMap = !isProd;
 
 // HTML loaders
 const html = {
@@ -17,16 +19,13 @@ const html = {
   ],
 };
 
-// Javascript loaders
+// JavaScript loaders
 const js = {
   test: /\.js(x)?$/,
   exclude: /node_modules/,
   use: [
     {
       loader: 'babel-loader',
-      options: {
-        presets: ['@babel/preset-env'],
-      },
     },
     'eslint-loader',
   ],
@@ -34,7 +33,7 @@ const js = {
 
 // Style loaders
 const styleLoader = {
-  loader: 'style-loader'
+  loader: 'style-loader',
 };
 
 const cssLoader = {
@@ -47,45 +46,23 @@ const cssLoader = {
 const postcssLoader = {
   loader: 'postcss-loader',
   options: {
-    plugins: [
-      require('autoprefixer')(),
-    ],
     sourceMap,
   },
 };
 
 const css = {
   test: /\.css$/,
-  use: [
-    config.env === 'production' ? MiniCssExtractPlugin.loader : styleLoader,
-    cssLoader,
-    postcssLoader,
-  ],
+  use: [isProd ? MiniCssExtractPlugin.loader : styleLoader, cssLoader, postcssLoader],
 };
 
 const sass = {
   test: /\.s[c|a]ss$/,
   use: [
-    config.env === 'production' ? MiniCssExtractPlugin.loader : styleLoader,
+    isProd ? MiniCssExtractPlugin.loader : styleLoader,
     cssLoader,
     postcssLoader,
     {
       loader: 'sass-loader',
-      options: {
-        sourceMap,
-      },
-    },
-  ],
-};
-
-const less = {
-  test: /\.less$/,
-  use: [
-    config.env === 'production' ? MiniCssExtractPlugin.loader : styleLoader,
-    cssLoader,
-    postcssLoader,
-    {
-      loader: 'less-loader',
       options: {
         sourceMap,
       },
@@ -118,24 +95,19 @@ const images = {
   test: /\.(gif|png|jpe?g|svg)$/i,
   exclude: /fonts/,
   use: [
-    'file-loader?name=images/[name].[hash].[ext]',
-    config.env === 'production' ? imageLoader : null,
-  ].filter(Boolean),
-};
-
-// Font loaders
-const fonts = {
-  test: /\.(woff|woff2|eot|ttf|otf|svg)$/,
-  exclude: /images/,
-  use: [
     {
-      loader: 'file-loader',
-      query: {
+      loader: 'url-loader',
+      options: {
+        limit: 8192,
+        loader: 'file-loader',
+
+        // file-loader options
         name: '[name].[hash].[ext]',
-        outputPath: 'fonts/',
+        outputPath: 'images/',
       },
     },
-  ],
+    isProd ? imageLoader : null,
+  ].filter(Boolean),
 };
 
 // Video loaders
@@ -152,13 +124,19 @@ const videos = {
   ],
 };
 
-module.exports = [
-  html,
-  js,
-  css,
-  sass,
-  less,
-  images,
-  fonts,
-  videos,
-];
+// Font loaders
+const fonts = {
+  test: /\.(woff|woff2|eot|ttf|otf|svg)$/,
+  exclude: /images/,
+  use: [
+    {
+      loader: 'file-loader',
+      options: {
+        name: '[name].[hash].[ext]',
+        outputPath: 'fonts/',
+      },
+    },
+  ],
+};
+
+module.exports = [html, js, css, sass, images, videos, fonts];
